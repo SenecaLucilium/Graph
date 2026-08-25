@@ -72,9 +72,14 @@ std::unique_ptr<NumberToken> Lexer::readNumber()
 {
     std::string number = "";
     int pos = this->currentPosition;
+    bool doubleFlag = false;
 
     while (this->currentPosition < this->source.size() && (isdigit(this->source[this->currentPosition]) || this->source[this->currentPosition] == '.'))
     {
+        if (this->source[this->currentPosition] == '.') {
+            if (doubleFlag) break;
+            else doubleFlag = true;
+        }
         number += this->source[this->currentPosition];
         this->currentPosition++;
     }
@@ -86,7 +91,6 @@ std::unique_ptr<IdentifierToken> Lexer::readIdentifier()
 {
     std::string identifier = "";
     int pos = this->currentPosition;
-    IdentifierToken::IdentifierType type = IdentifierToken::IdentifierType::Invalid;
 
     while (this->currentPosition < this->source.size() && isalpha(this->source[this->currentPosition]))
     {
@@ -128,7 +132,17 @@ std::vector<std::unique_ptr<Token>> Lexer::tokenize()
             // If alphabet
             tokenList.push_back(this->readIdentifier());
         }
+        else {
+            tokenList.push_back(std::make_unique<Token>(
+                Token::TokenType::Invalid,
+                std::string(1, currCh),
+                this->currentPosition
+            ));
+            this->currentPosition++;
+        }
     }
+
+    tokenList.push_back(std::make_unique<Token>(Token::TokenType::End, "", this->currentPosition));
 
     return tokenList;
 }

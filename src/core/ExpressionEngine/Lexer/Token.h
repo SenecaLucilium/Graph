@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 
 namespace src::core::ExpressionEngine::Lexer
 {
@@ -31,7 +32,7 @@ public:
     std::string text;
     int position;
 
-    Token (TokenType type_, std::string text_, int position_) : type(type_), text(text_), position(position_) {}
+    Token (TokenType type_, std::string text_, int position_) : type(type_), text(std::move(text_)), position(position_) {}
 
     virtual ~Token() = default;
 };
