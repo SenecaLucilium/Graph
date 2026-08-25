@@ -13,3 +13,30 @@ add_executable(Graph
 target_include_directories(Graph PRIVATE
     src/core/ExpressionEngine/Lexer
 )
+
+include(FetchContent)
+
+FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+)
+
+FetchContent_MakeAvailable(googletest)
+
+enable_testing()
+
+add_executable(GraphTests
+    tests/LexerTests.cpp
+    src/core/ExpressionEngine/Lexer/Lexer.cpp
+)
+
+target_include_directories(GraphTests PRIVATE
+    src/core/ExpressionEngine/Lexer
+)
+
+target_link_libraries(GraphTests PRIVATE
+    GTest::gtest_main
+)
+
+include(GoogleTest)
+gtest_discover_tests(GraphTests)
