@@ -8,10 +8,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(Graph
     src/main.cpp
     src/core/ExpressionEngine/Lexer/Lexer.cpp
+    src/core/ExpressionEngine/Parser/ExpressionNode.cpp
+    src/core/ExpressionEngine/Parser/Parser.cpp
 )
 
 target_include_directories(Graph PRIVATE
     src/core/ExpressionEngine/Lexer
+    src/core/ExpressionEngine/Parser
 )
 
 include(FetchContent)
