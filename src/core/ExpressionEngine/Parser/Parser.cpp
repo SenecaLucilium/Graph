@@ -1,7 +1,31 @@
 #include "Parser.h"
 
+#include <stdexcept>
+
 namespace src::core::ExpressionEngine::Parser
 {
+namespace
+{
+void validateTokens(const std::vector<std::unique_ptr<Token>>& tokens)
+{
+    if (tokens.empty()) throw std::invalid_argument("Cannot parse empty token list");
+
+    bool endFound = false;
+
+    for (size_t position = 0; position < tokens.size(); position++)
+    {
+        if (!tokens[position]) throw std::invalid_argument("Token is empty");
+
+        if (tokens[position]->type == Token::TokenType::End)
+        {
+            if (position != tokens.size() - 1 || endFound) throw std::invalid_argument("End token must be the last token");
+            endFound = true;
+        }
+    }
+
+    if (!endFound) throw std::invalid_argument("End token not found");
+}
+
 std::unique_ptr<ExpressionNode> parseExpression(std::vector<std::unique_ptr<Token>>& tokens, size_t& currentPos)
 {
     return parseAdditive(tokens, currentPos);
@@ -40,18 +64,31 @@ std::unique_ptr<ExpressionNode> parseMultiplicative(std::vector<std::unique_ptr<
     while (true)
     {
         BinaryOperationNode::BinaryType operationType;
+        bool explicitOperator = false;
 
         switch (tokens[currentPos]->type)
         {
         case Token::TokenType::Star:
             operationType = BinaryOperationNode::BinaryType::Star;
+            explicitOperator = true;
+            break;
+
         case Token::TokenType::Slash:
             operationType = BinaryOperationNode::BinaryType::Slash;
+            explicitOperator = true;
+            break;
+
         default:
-            return leftChild;
+            if (tokens[currentPos]->type == Token::TokenType::Number ||
+                tokens[currentPos]->type == Token::TokenType::Identifier ||
+                tokens[currentPos]->type == Token::TokenType::LeftParen)
+            {
+                operationType = BinaryOperationNode::BinaryType::Star;
+            }
+            else return leftChild;
         }
 
-        currentPos++;
+        if (explicitOperator) currentPos++;
 
         std::unique_ptr<ExpressionNode> rightChild = parsePower(tokens, currentPos);
         leftChild = std::make_unique<BinaryOperationNode>(operationType, std::move(leftChild), std::move(rightChild));
@@ -83,11 +120,13 @@ std::unique_ptr<ExpressionNode> parseUnary(std::vector<std::unique_ptr<Token>>& 
     {
         currentPos++;
         operationType = UnaryOperationNode::UnaryType::Plus;
+        break;
     }
     case Token::TokenType::Minus:
     {
         currentPos++;
         operationType = UnaryOperationNode::UnaryType::Minus;
+        break;
     }
     default:
         return parsePrimary(tokens, currentPos);
@@ -156,7 +195,7 @@ std::unique_ptr<ExpressionNode> parsePrimary(std::vector<std::unique_ptr<Token>>
         return expression;
     }
     default:
-        throw std::invalid_argument("Unexpected token:" + currentToken->text);
+        throw std::invalid_argument("Unexpected token: " + currentToken->text);
     }
 }
 
@@ -209,16 +248,5 @@ std::unique_ptr<ExpressionNode> parseFunctionCall(std::vector<std::unique_ptr<To
     return std::make_unique<FunctionNode>(functionType, std::move(child));
 }
 
-std::unique_ptr<ExpressionTree> parse(std::vector<std::unique_ptr<Token>>& tokens)
-{
-    if (tokens.empty()) throw std::invalid_argument("Cannot parse empty token list");
-
-    size_t currentPos = 0;
-
-    std::unique_ptr<ExpressionNode> root = parseExpression(tokens, currentPos);
-    if (currentPos >= tokens.size() || tokens[currentPos]->type == Token::TokenType::End) throw std::invalid_argument("Unexpected token after expression");
-    
-    return std::make_unique<ExpressionTree>(std::move(root));
 }
-
 }
