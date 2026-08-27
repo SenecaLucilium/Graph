@@ -19,6 +19,8 @@ public:
     ExpressionTree(std::unique_ptr<ExpressionNode> root_);
     ~ExpressionTree() = default;
 
+    const ExpressionNode* getRoot() const { return this->root.get(); };
+
     double calculate(double x) const;
 private:
     std::unique_ptr<ExpressionNode> root;
@@ -31,6 +33,8 @@ private:
 
 public:
     NumberNode(double number_) : number(number_) {};
+
+    double getNumber() const { return this->number; };
 
     double calculate([[maybe_unused]] double x) const final;
 };
@@ -50,6 +54,8 @@ public:
 
     ConstantNode(ConstantType type_) : type(type_) {};
 
+    ConstantType getType() const { return this->type; };
+
     double calculate([[maybe_unused]] double x) const final;
 
 private:
@@ -63,6 +69,9 @@ public:
 
     UnaryOperationNode(UnaryType type_, std::unique_ptr<ExpressionNode> child_)
         : type(type_), child(std::move(child_)) {};
+
+    UnaryType getType() const { return this->type; };
+    const ExpressionNode* getChild() const { return this->child.get(); };
 
     double calculate(double x) const final;
 
@@ -78,6 +87,10 @@ public:
 
     BinaryOperationNode(BinaryType type_, std::unique_ptr<ExpressionNode> leftChild_, std::unique_ptr<ExpressionNode> rightChild_)
         : type(type_), leftChild(std::move(leftChild_)), rightChild(std::move(rightChild_)) {};
+
+    BinaryType getType() const { return this->type; };
+    const ExpressionNode* getLeftChild() const { return this->leftChild.get(); };
+    const ExpressionNode* getRightChild() const { return this->rightChild.get(); };
     
     double calculate(double x) const final;
 
@@ -94,6 +107,9 @@ public:
 
     FunctionNode(FunctionType type_, std::unique_ptr<ExpressionNode> child_)
         : type(type_), child(std::move(child_)) {};
+
+    FunctionType getType() const { return this->type; };
+    const ExpressionNode* getChild() const { return this->child.get(); };
 
     double calculate(double x) const final;
 

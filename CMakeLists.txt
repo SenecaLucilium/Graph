@@ -22,6 +22,7 @@ include(FetchContent)
 FetchContent_Declare(
     googletest
     URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 
 FetchContent_MakeAvailable(googletest)
@@ -30,11 +31,16 @@ enable_testing()
 
 add_executable(GraphTests
     tests/LexerTests.cpp
+    tests/ParserTests.cpp
+
     src/core/ExpressionEngine/Lexer/Lexer.cpp
+    src/core/ExpressionEngine/Parser/Parser.cpp
+    src/core/ExpressionEngine/Parser/ExpressionNode.cpp
 )
 
 target_include_directories(GraphTests PRIVATE
     src/core/ExpressionEngine/Lexer
+    src/core/ExpressionEngine/Parser
 )
 
 target_link_libraries(GraphTests PRIVATE
