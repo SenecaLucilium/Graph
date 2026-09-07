@@ -1,5 +1,9 @@
 #pragma once
 
+#include <optional>
+#include <memory>
+#include <string>
+
 #include "../DiagnosticsTypes.h"
 
 namespace src::common::Diagnostics::Errors
@@ -7,9 +11,9 @@ namespace src::common::Diagnostics::Errors
 
 struct Error
 {
-    ErrorDomain domain;
-    ErrorCode code;
-    ErrorLevel errorLevel;
+    ErrorDomain domain = ErrorDomain::Internal;
+    ErrorCode code = ErrorCode::Unknown;
+    ErrorLevel errorLevel = ErrorLevel::Error;
     
     std::string message;
     std::optional<SourceLocation> location;

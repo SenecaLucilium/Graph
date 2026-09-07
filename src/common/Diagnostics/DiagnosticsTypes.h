@@ -3,9 +3,9 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <variant>
-#include <string>
 #include <map>
+#include <string>
+#include <variant>
 
 namespace src::common::Diagnostics
 {
@@ -29,10 +29,10 @@ enum class ErrorLevel
 
 struct SourceLocation
 {
-    std::size_t position;
-    std::size_t length;
-    std::size_t col;
-    std::size_t row;
+    std::size_t position = 0;
+    std::size_t length = 0;
+    std::size_t col = 0;
+    std::size_t row = 0;
 };
 
 enum class ErrorDomain
