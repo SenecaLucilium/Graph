@@ -5,19 +5,28 @@ project(Graph LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(Graph
-    src/main.cpp
+add_library(GraphCore STATIC
     src/core/ExpressionEngine/Lexer/Lexer.cpp
     src/core/ExpressionEngine/Parser/ExpressionNode.cpp
     src/core/ExpressionEngine/Parser/Parser.cpp
+
     src/common/Diagnostics/Logger/Logger.cpp
     src/common/Diagnostics/Logger/Sink/ConsoleSink.cpp
 )
 
-target_include_directories(Graph PRIVATE
-    src/core/ExpressionEngine/Lexer
-    src/core/ExpressionEngine/Parser
-    src/common/Diagnostics
+target_include_directories(GraphCore PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/ExpressionEngine/Lexer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/ExpressionEngine/Parser
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/Diagnostics
+)
+
+add_executable(Graph
+    src/main.cpp
+)
+
+target_link_libraries(Graph PRIVATE
+    GraphCore
 )
 
 include(FetchContent)
@@ -36,18 +45,11 @@ add_executable(GraphTests
     tests/LexerTests.cpp
     tests/ParserTests.cpp
     tests/DiagnosticsTests.cpp
-
-    src/core/ExpressionEngine/Lexer/Lexer.cpp
-    src/core/ExpressionEngine/Parser/Parser.cpp
-    src/core/ExpressionEngine/Parser/ExpressionNode.cpp
-    src/common/Diagnostics/Logger/Logger.cpp
-    src/common/Diagnostics/Logger/Sink/ConsoleSink.cpp
 )
 
 target_include_directories(GraphTests PRIVATE
-    src/core/ExpressionEngine/Lexer
-    src/core/ExpressionEngine/Parser
-    src/common/Diagnostics
+    GraphCore
+    GTest::gtest_main
 )
 
 target_link_libraries(GraphTests PRIVATE

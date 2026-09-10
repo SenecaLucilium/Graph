@@ -11,6 +11,20 @@ namespace
     {
         return (ch == '+' || ch == '-' || ch == '*' || ch == '/' || ch == '^') ? true : false;
     }
+
+    diagnostics::Errors::Error makeLexerError(diagnostics::ErrorCode code, std::string message, std::size_t position, std::size_t length, diagnostics::Context context = {})
+    {
+        diagnostics::Errors::Error error;
+
+        error.domain = diagnostics::ErrorDomain::Lexer;
+        error.code = code;
+        error.errorLevel = diagnostics::ErrorLevel::Error;
+        error.message = std::move(message);
+        error.location = diagnostics::SourceLocation{.position = position, .length = length, .col = 0, .row = 0};
+        error.context = std::move(context);
+
+        return error;
+    }
 }
 
 namespace src::core::ExpressionEngine::Lexer
@@ -68,31 +82,65 @@ std::unique_ptr<Token> Lexer::readMathSymbol()
     return token;
 }
 
-std::unique_ptr<NumberToken> Lexer::readNumber()
+diagnostics::Result<std::unique_ptr<NumberToken>> Lexer::readNumber()
 {
-    std::string number = "";
-    int pos = this->currentPosition;
-    bool doubleFlag = false;
+    std::string number;
+    const std::size_t position = this->currentPosition;
+    bool hasDot = false;
 
-    while (this->currentPosition < this->source.size() && (isdigit(this->source[this->currentPosition]) || this->source[this->currentPosition] == '.'))
+    while (this->currentPosition < this->source.size() &&
+        (
+            std::isdigit(static_cast<unsigned char>(this->source[this->currentPosition])) ||
+            this->source[this->currentPosition] == '.'
+        )
+    )
     {
-        if (this->source[this->currentPosition] == '.') {
-            if (doubleFlag) break;
-            else doubleFlag = true;
+        if (this->source[this->currentPosition] == '.')
+        {
+            if (hasDot)
+            {
+                diagnostics::Context context;
+                context["number"] = number;
+
+                return diagnostics::Result<std::unique_ptr<NumberToken>>::failure
+                (
+                    makeLexerError
+                    (
+                        diagnostics::ErrorCode::InvalidNumber,
+                        "Number contains more than one dot",
+                        this->currentPosition,
+                        1,
+                        std::move(context)
+                    )
+                );
+            }
+
+            hasDot = true;
         }
         number += this->source[this->currentPosition];
         this->currentPosition++;
     }
 
-    return std::make_unique<NumberToken> (number, pos, std::stod(number));
+    return diagnostics::Result<std::unique_ptr<NumberToken>>::success
+    (
+        std::make_unique<NumberToken>
+        (
+            number,
+            static_cast<int>(position),
+            std::stod(number)
+        )
+    );
 }
 
-std::unique_ptr<IdentifierToken> Lexer::readIdentifier()
+diagnostics::Result<std::unique_ptr<IdentifierToken>> Lexer::readIdentifier()
 {
-    std::string identifier = "";
-    int pos = this->currentPosition;
+    std::string identifier;
+    const std::size_t position = this->currentPosition;
 
-    while (this->currentPosition < this->source.size() && isalpha(this->source[this->currentPosition]))
+    while (
+        this->currentPosition < this->source.size() &&
+        std::isalpha(static_cast<unsigned char>(this->source[this->currentPosition]))
+    )
     {
         identifier += this->source[this->currentPosition];
         this->currentPosition++;
@@ -100,51 +148,117 @@ std::unique_ptr<IdentifierToken> Lexer::readIdentifier()
         if (IdentifierToken::isIdentifier(identifier)) break;
     }
 
-    return std::make_unique<IdentifierToken> (identifier, pos, IdentifierToken::whichIdentifier(identifier));
+    const IdentifierToken::IdentifierType type = IdentifierToken::whichIdentifier(identifier);
+
+    if (type == IdentifierToken::IdentifierType::Invalid)
+    {
+        diagnostics::Context context;
+        context["identifier"] = identifier;
+
+        return diagnostics::Result<std::unique_ptr<IdentifierToken>>::failure(
+            makeLexerError
+            (
+                diagnostics::ErrorCode::InvalidIdentifier,
+                "Unknown identifier",
+                position,
+                identifier.size(),
+                std::move(context)
+            )
+        );
+    }
+
+    return diagnostics::Result<std::unique_ptr<IdentifierToken>>::success(
+        std::make_unique<IdentifierToken>
+        (
+            identifier,
+            static_cast<int>(position),
+            type
+        )
+    );
 }
 
-std::vector<std::unique_ptr<Token>> Lexer::tokenize()
+diagnostics::Result<std::vector<std::unique_ptr<Token>>> Lexer::tokenize()
 {
-    std::vector<std::unique_ptr<Token>> tokenList = {};
+    std::vector<std::unique_ptr<Token>> tokenList;
 
-    for (this->currentPosition; this->currentPosition < this->source.size();)
+    while (this->currentPosition < this->source.size())
     {
-        char currCh = this->source[this->currentPosition];
+        const char currentCharacter = this->source[this->currentPosition];
 
-        if (isspace(currCh)) {
-            // If whitespace
+        if (std::isspace(static_cast<unsigned char>(currentCharacter)))
+        {
             this->skipWhitespace();
             continue;
         }
-        else if (isparentheses(currCh)) {
-            // If parentheses
+
+        if (isparentheses(currentCharacter))
+        {
             tokenList.push_back(this->readParentheses());
+            continue;
         }
-        else if (issymbol(currCh)) {
-            // If math symbol
+
+        if (issymbol(currentCharacter))
+        {
             tokenList.push_back(this->readMathSymbol());
+            continue;
         }
-        else if (isdigit(currCh)) {
-            // If number
-            tokenList.push_back(this->readNumber());
+
+        if (std::isdigit(static_cast<unsigned char>(currentCharacter)))
+        {
+            auto numberResult = this->readNumber();
+
+            if (!numberResult)
+            {
+                return diagnostics::Result<std::vector<std::unique_ptr<Token>>>::failure(numberResult.error());
+            }
+
+            std::unique_ptr<NumberToken> numberToken = std::move(numberResult).value();
+
+            tokenList.push_back(std::move(numberToken));
+            continue;
         }
-        else if (isalpha(currCh)) {
-            // If alphabet
-            tokenList.push_back(this->readIdentifier());
+
+        if (std::isalpha(static_cast<unsigned char>(currentCharacter)))
+        {
+            auto identifierResult = this->readIdentifier();
+
+            if (!identifierResult)
+            {
+                return diagnostics::Result<std::vector<std::unique_ptr<Token>>>::failure(identifierResult.error());
+            }
+
+            std::unique_ptr<IdentifierToken> identifierToken = std::move(identifierResult).value();
+
+            tokenList.push_back(std::move(identifierToken));
+            continue;
         }
-        else {
-            tokenList.push_back(std::make_unique<Token>(
-                Token::TokenType::Invalid,
-                std::string(1, currCh),
-                this->currentPosition
-            ));
-            this->currentPosition++;
-        }
+
+        diagnostics::Context context;
+        context["character"] = std::string(1, currentCharacter);
+
+        return diagnostics::Result<std::vector<std::unique_ptr<Token>>>::failure(
+            makeLexerError
+            (
+                diagnostics::ErrorCode::UnexpectedCharacter,
+                "Unexpected character",
+                this->currentPosition,
+                1,
+                std::move(context)
+            )
+        );
     }
 
-    tokenList.push_back(std::make_unique<Token>(Token::TokenType::End, "", this->currentPosition));
+    tokenList.push_back
+    (
+        std::make_unique<Token>
+        (
+            Token::TokenType::End,
+            "",
+            static_cast<int>(this->currentPosition)
+        )
+    );
 
-    return tokenList;
+    return diagnostics::Result<std::vector<std::unique_ptr<Token>>>::success(std::move(tokenList));
 }
 
 }
