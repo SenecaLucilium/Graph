@@ -10,11 +10,14 @@ add_executable(Graph
     src/core/ExpressionEngine/Lexer/Lexer.cpp
     src/core/ExpressionEngine/Parser/ExpressionNode.cpp
     src/core/ExpressionEngine/Parser/Parser.cpp
+    src/common/Diagnostics/Logger/Logger.cpp
+    src/common/Diagnostics/Logger/Sink/ConsoleSink.cpp
 )
 
 target_include_directories(Graph PRIVATE
     src/core/ExpressionEngine/Lexer
     src/core/ExpressionEngine/Parser
+    src/common/Diagnostics
 )
 
 include(FetchContent)
@@ -32,15 +35,19 @@ enable_testing()
 add_executable(GraphTests
     tests/LexerTests.cpp
     tests/ParserTests.cpp
+    tests/DiagnosticsTests.cpp
 
     src/core/ExpressionEngine/Lexer/Lexer.cpp
     src/core/ExpressionEngine/Parser/Parser.cpp
     src/core/ExpressionEngine/Parser/ExpressionNode.cpp
+    src/common/Diagnostics/Logger/Logger.cpp
+    src/common/Diagnostics/Logger/Sink/ConsoleSink.cpp
 )
 
 target_include_directories(GraphTests PRIVATE
     src/core/ExpressionEngine/Lexer
     src/core/ExpressionEngine/Parser
+    src/common/Diagnostics
 )
 
 target_link_libraries(GraphTests PRIVATE
