@@ -67,7 +67,14 @@ int main()
 {
     Lexer lexer("xsin(x^2 + 12 + 2.411 / cos(x)) * e * pi");
 
-    std::vector<std::unique_ptr<Token>> tokens = lexer.tokenize();
+    auto tokenizeResult = lexer.tokenize();
+    if (!tokenizeResult)
+    {
+        std::cerr << "Lexing failed: " << tokenizeResult.error().message << '\n';
+        return 1;
+    }
+
+    std::vector<std::unique_ptr<Token>> tokens = std::move(tokenizeResult).value();
 
     for (const std::unique_ptr<Token>& token : tokens)
     {

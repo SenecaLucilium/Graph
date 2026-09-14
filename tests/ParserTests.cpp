@@ -4,19 +4,34 @@
 #include "Parser.h"
 
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace lexer = src::core::ExpressionEngine::Lexer;
 namespace parser = src::core::ExpressionEngine::Parser;
+namespace diagnostics = src::common::Diagnostics;
 
 namespace
 {
     std::unique_ptr<parser::ExpressionTree> parseSource(const std::string& source)
     {
         lexer::Lexer lexer(source);
-        auto tokens = lexer.tokenize();
+        auto tokenizeResult = lexer.tokenize();
+        if (!tokenizeResult) throw std::runtime_error(tokenizeResult.error().message);
+        auto tokens = std::move(tokenizeResult).value();
 
+        auto parseResult = parser::parse(tokens);
+        if (!parseResult) throw std::runtime_error(parseResult.error().message);
+        return std::move(parseResult).value();
+    }
+
+    parser::ParseResult parseResult(const std::string& source)
+    {
+        lexer::Lexer lexer(source);
+        auto tokenizeResult = lexer.tokenize();
+        if (!tokenizeResult) throw std::runtime_error(tokenizeResult.error().message);
+        auto tokens = std::move(tokenizeResult).value();
         return parser::parse(tokens);
     }
 
@@ -486,6 +501,68 @@ TEST(ParserTreeTests, BuildsImplicitMultiplicationOfParenthesizedExpressions)
     expectNumberNode(right->getRightChild(), 1.0);
 }
 
+TEST(ParserTreeTests, RespectsDivisionPriority)
+{
+    auto tree = parseSource("1 + 8 / 2");
+    auto* root = expectBinaryNode(tree->getRoot(), parser::BinaryOperationNode::BinaryType::Plus);
+
+    ASSERT_NE(root, nullptr);
+    expectNumberNode(root->getLeftChild(), 1.0);
+
+    auto* division = expectBinaryNode(root->getRightChild(), parser::BinaryOperationNode::BinaryType::Slash);
+    ASSERT_NE(division, nullptr);
+    expectNumberNode(division->getLeftChild(), 8.0);
+    expectNumberNode(division->getRightChild(), 2.0);
+}
+
+TEST(ParserTreeTests, BuildsUnaryOperationInsidePower)
+{
+    auto tree = parseSource("2 ^ -x");
+    auto* root = expectBinaryNode(tree->getRoot(), parser::BinaryOperationNode::BinaryType::Caret);
+
+    ASSERT_NE(root, nullptr);
+    expectNumberNode(root->getLeftChild(), 2.0);
+
+    auto* unary = expectUnaryNode(root->getRightChild(), parser::UnaryOperationNode::UnaryType::Minus);
+    ASSERT_NE(unary, nullptr);
+    expectVariableNode(unary->getChild());
+}
+
+TEST(ParserTreeTests, BuildsNestedFunctionsWithImplicitMultiplication)
+{
+    auto tree = parseSource("2sin(cos(x))");
+    auto* root = expectBinaryNode(tree->getRoot(), parser::BinaryOperationNode::BinaryType::Star);
+
+    ASSERT_NE(root, nullptr);
+    expectNumberNode(root->getLeftChild(), 2.0);
+
+    auto* sin = expectFunctionNode(root->getRightChild(), parser::FunctionNode::FunctionType::Sin);
+    ASSERT_NE(sin, nullptr);
+    auto* cos = expectFunctionNode(sin->getChild(), parser::FunctionNode::FunctionType::Cos);
+    ASSERT_NE(cos, nullptr);
+    expectVariableNode(cos->getChild());
+}
+
+TEST(ParserTreeTests, BuildsSeveralNestedBinaryOperations)
+{
+    auto tree = parseSource("(x + 1) * (2 - (x / 3))");
+    auto* root = expectBinaryNode(tree->getRoot(), parser::BinaryOperationNode::BinaryType::Star);
+
+    ASSERT_NE(root, nullptr);
+    auto* left = expectBinaryNode(root->getLeftChild(), parser::BinaryOperationNode::BinaryType::Plus);
+    ASSERT_NE(left, nullptr);
+    expectVariableNode(left->getLeftChild());
+    expectNumberNode(left->getRightChild(), 1.0);
+
+    auto* right = expectBinaryNode(root->getRightChild(), parser::BinaryOperationNode::BinaryType::Minus);
+    ASSERT_NE(right, nullptr);
+    expectNumberNode(right->getLeftChild(), 2.0);
+    auto* division = expectBinaryNode(right->getRightChild(), parser::BinaryOperationNode::BinaryType::Slash);
+    ASSERT_NE(division, nullptr);
+    expectVariableNode(division->getLeftChild());
+    expectNumberNode(division->getRightChild(), 3.0);
+}
+
 struct InvalidExpressionCase
 {
     const char* source;
@@ -498,7 +575,8 @@ class InvalidExpressionTest
 
 TEST_P(InvalidExpressionTest, RejectsExpression)
 {
-    EXPECT_ANY_THROW(parseSource(GetParam().source));
+    auto result = parseResult(GetParam().source);
+    EXPECT_FALSE(result);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -517,10 +595,7 @@ INSTANTIATE_TEST_SUITE_P(
         InvalidExpressionCase{"(1 + 2"},
         InvalidExpressionCase{"1 + 2)"},
         InvalidExpressionCase{"()"},
-        InvalidExpressionCase{"abc"},
-        InvalidExpressionCase{"x @ 2"},
-        InvalidExpressionCase{"2.4.1"},
-        InvalidExpressionCase{"sin(1, 2)"}
+        InvalidExpressionCase{"1)"}
     )
 );
 
@@ -528,7 +603,9 @@ TEST(ParserTokenValidation, RejectsEmptyList)
 {
     std::vector<std::unique_ptr<lexer::Token>> tokens;
 
-    EXPECT_ANY_THROW(parser::parse(tokens));
+    auto result = parser::parse(tokens);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code, diagnostics::ErrorCode::ExpectedExpression);
 }
 
 TEST(ParserTokenValidation, RejectsEmptyToken)
@@ -542,7 +619,9 @@ TEST(ParserTokenValidation, RejectsEmptyToken)
         0
     ));
 
-    EXPECT_ANY_THROW(parser::parse(tokens));
+    auto result = parser::parse(tokens);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code, diagnostics::ErrorCode::UnexpectedToken);
 }
 
 TEST(ParserTokenValidation, RejectsMissingEndToken)
@@ -555,7 +634,9 @@ TEST(ParserTokenValidation, RejectsMissingEndToken)
         2.0
     ));
 
-    EXPECT_ANY_THROW(parser::parse(tokens));
+    auto result = parser::parse(tokens);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code, diagnostics::ErrorCode::UnexpectedToken);
 }
 
 TEST(ParserTokenValidation, RejectsEndInTheMiddle)
@@ -574,7 +655,9 @@ TEST(ParserTokenValidation, RejectsEndInTheMiddle)
         2.0
     ));
 
-    EXPECT_ANY_THROW(parser::parse(tokens));
+    auto result = parser::parse(tokens);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code, diagnostics::ErrorCode::UnexpectedToken);
 }
 
 TEST(ParserTokenValidation, RejectsInvalidToken)
@@ -593,5 +676,34 @@ TEST(ParserTokenValidation, RejectsInvalidToken)
         1
     ));
 
-    EXPECT_ANY_THROW(parser::parse(tokens));
+    auto result = parser::parse(tokens);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code, diagnostics::ErrorCode::UnexpectedToken);
+}
+
+TEST(ParserErrors, ReportsMissingFunctionParenthesis)
+{
+    auto result = parseResult("sin x");
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code, diagnostics::ErrorCode::MissingFunctionParenthesis);
+    EXPECT_EQ(result.error().domain, diagnostics::ErrorDomain::Parser);
+    EXPECT_NE(result.error().message.find("parenthesis"), std::string::npos);
+}
+
+TEST(ParserErrors, ReportsMissingRightParenthesis)
+{
+    auto result = parseResult("(x + 1");
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code, diagnostics::ErrorCode::MissingRightParenthesis);
+    EXPECT_EQ(result.error().domain, diagnostics::ErrorDomain::Parser);
+}
+
+TEST(ParserErrors, ReportsTrailingTokens)
+{
+    auto result = parseResult("1)");
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code, diagnostics::ErrorCode::TrailingTokens);
 }

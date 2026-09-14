@@ -48,11 +48,14 @@ add_executable(GraphTests
 )
 
 target_include_directories(GraphTests PRIVATE
-    GraphCore
-    GTest::gtest_main
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/ExpressionEngine/Lexer
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/ExpressionEngine/Parser
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/Diagnostics
 )
 
 target_link_libraries(GraphTests PRIVATE
+    GraphCore
     GTest::gtest_main
 )
 

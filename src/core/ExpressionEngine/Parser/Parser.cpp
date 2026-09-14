@@ -3,11 +3,56 @@
 #include <stdexcept>
 
 using namespace src::core::ExpressionEngine::Lexer;
+namespace diagnostics = src::common::Diagnostics;
 
 namespace src::core::ExpressionEngine::Parser
 {
 namespace
 {
+using diagnostics::ErrorCode;
+using Error = diagnostics::Errors::Error;
+
+class ParserException final : public std::runtime_error
+{
+public:
+    explicit ParserException(Error error_)
+        : std::runtime_error(error_.message), error(std::move(error_)) {}
+
+    Error error;
+};
+
+[[noreturn]] void fail(ErrorCode code, std::string message, const Token* token = nullptr)
+{
+    Error error;
+    error.domain = diagnostics::ErrorDomain::Parser;
+    error.code = code;
+    error.errorLevel = diagnostics::ErrorLevel::Error;
+    error.message = std::move(message);
+
+    if (token)
+    {
+        error.location = diagnostics::SourceLocation{
+            .position = static_cast<std::size_t>(token->position),
+            .length = token->text.empty() ? 1 : token->text.size()
+        };
+        error.context["token"] = token->text;
+    }
+
+    throw ParserException(std::move(error));
+}
+
+const Token* getCurrentToken(const std::vector<std::unique_ptr<Token>>& tokens, size_t position)
+{
+    return position < tokens.size() ? tokens[position].get() : nullptr;
+}
+
+const Token& requireCurrentToken(const std::vector<std::unique_ptr<Token>>& tokens, size_t position)
+{
+    const Token* token = getCurrentToken(tokens, position);
+    if (!token) fail(ErrorCode::UnexpectedEndOfExpression, "Unexpected end of expression");
+    return *token;
+}
+
 std::unique_ptr<ExpressionNode> parseExpression(std::vector<std::unique_ptr<Token>>& tokens, size_t& currentPos);
 std::unique_ptr<ExpressionNode> parseAdditive(std::vector<std::unique_ptr<Token>>& tokens, size_t& currentPos);
 std::unique_ptr<ExpressionNode> parseMultiplicative(std::vector<std::unique_ptr<Token>>& tokens, size_t& currentPos);
@@ -18,22 +63,26 @@ std::unique_ptr<ExpressionNode> parseFunctionCall(std::vector<std::unique_ptr<To
 
 void validateTokens(const std::vector<std::unique_ptr<Token>>& tokens)
 {
-    if (tokens.empty()) throw std::invalid_argument("Cannot parse empty token list");
+    if (tokens.empty()) fail(ErrorCode::ExpectedExpression, "Cannot parse empty token list");
 
     bool endFound = false;
 
     for (size_t position = 0; position < tokens.size(); position++)
     {
-        if (!tokens[position]) throw std::invalid_argument("Token is empty");
+        if (!tokens[position]) fail(ErrorCode::UnexpectedToken, "Token is empty");
+
+        if (tokens[position]->type == Token::TokenType::Invalid)
+            fail(ErrorCode::UnexpectedToken, "Invalid token: " + tokens[position]->text, tokens[position].get());
 
         if (tokens[position]->type == Token::TokenType::End)
         {
-            if (position != tokens.size() - 1 || endFound) throw std::invalid_argument("End token must be the last token");
+            if (position != tokens.size() - 1 || endFound)
+                fail(ErrorCode::UnexpectedToken, "End token must be the last token", tokens[position].get());
             endFound = true;
         }
     }
 
-    if (!endFound) throw std::invalid_argument("End token not found");
+    if (!endFound) fail(ErrorCode::UnexpectedToken, "End token not found");
 }
 
 std::unique_ptr<ExpressionNode> parseExpression(std::vector<std::unique_ptr<Token>>& tokens, size_t& currentPos)
@@ -48,7 +97,7 @@ std::unique_ptr<ExpressionNode> parseAdditive(std::vector<std::unique_ptr<Token>
     {
         BinaryOperationNode::BinaryType operationType;
 
-        switch (tokens[currentPos]->type)
+        switch (requireCurrentToken(tokens, currentPos).type)
         {
         case Token::TokenType::Plus:
             operationType = BinaryOperationNode::BinaryType::Plus;
@@ -76,7 +125,7 @@ std::unique_ptr<ExpressionNode> parseMultiplicative(std::vector<std::unique_ptr<
         BinaryOperationNode::BinaryType operationType;
         bool explicitOperator = false;
 
-        switch (tokens[currentPos]->type)
+        switch (requireCurrentToken(tokens, currentPos).type)
         {
         case Token::TokenType::Star:
             operationType = BinaryOperationNode::BinaryType::Star;
@@ -89,9 +138,9 @@ std::unique_ptr<ExpressionNode> parseMultiplicative(std::vector<std::unique_ptr<
             break;
 
         default:
-            if (tokens[currentPos]->type == Token::TokenType::Number ||
-                tokens[currentPos]->type == Token::TokenType::Identifier ||
-                tokens[currentPos]->type == Token::TokenType::LeftParen)
+            if (requireCurrentToken(tokens, currentPos).type == Token::TokenType::Number ||
+                requireCurrentToken(tokens, currentPos).type == Token::TokenType::Identifier ||
+                requireCurrentToken(tokens, currentPos).type == Token::TokenType::LeftParen)
             {
                 operationType = BinaryOperationNode::BinaryType::Star;
             }
@@ -109,7 +158,7 @@ std::unique_ptr<ExpressionNode> parsePower(std::vector<std::unique_ptr<Token>>& 
 {
     std::unique_ptr<ExpressionNode> leftChild = parseUnary(tokens, currentPos);
 
-    if (tokens[currentPos]->type == Token::TokenType::Caret)
+    if (requireCurrentToken(tokens, currentPos).type == Token::TokenType::Caret)
     {
         currentPos++;
 
@@ -124,7 +173,7 @@ std::unique_ptr<ExpressionNode> parsePower(std::vector<std::unique_ptr<Token>>& 
 std::unique_ptr<ExpressionNode> parseUnary(std::vector<std::unique_ptr<Token>>& tokens, size_t& currentPos)
 {
     UnaryOperationNode::UnaryType operationType;
-    switch(tokens[currentPos]->type)
+    switch(requireCurrentToken(tokens, currentPos).type)
     {
     case Token::TokenType::Plus:
     {
@@ -148,24 +197,24 @@ std::unique_ptr<ExpressionNode> parseUnary(std::vector<std::unique_ptr<Token>>& 
 
 std::unique_ptr<ExpressionNode> parsePrimary(std::vector<std::unique_ptr<Token>>& tokens, size_t& currentPos)
 {
-    Token* currentToken = tokens[currentPos].get();
+    const Token* token = &requireCurrentToken(tokens, currentPos);
 
-    switch (currentToken->type)
+    switch (token->type)
     {
     case Token::TokenType::Number:
     {
-        auto* numberToken = dynamic_cast<NumberToken*>(currentToken);
+        auto* numberToken = dynamic_cast<const NumberToken*>(token);
 
-        if (!numberToken) throw std::invalid_argument("Invalid number token");
+        if (!numberToken) fail(ErrorCode::UnexpectedToken, "Invalid number token", token);
 
         currentPos++;
         return std::make_unique<NumberNode>(numberToken->number);
     }
     case Token::TokenType::Identifier:
     {
-        auto* identifierToken = dynamic_cast<IdentifierToken*>(currentToken);
+        auto* identifierToken = dynamic_cast<const IdentifierToken*>(token);
 
-        if (!identifierToken) throw std::invalid_argument("Invalid identifier token");
+        if (!identifierToken) fail(ErrorCode::UnexpectedToken, "Invalid identifier token", token);
 
         switch (identifierToken->IType)
         {
@@ -189,7 +238,7 @@ std::unique_ptr<ExpressionNode> parsePrimary(std::vector<std::unique_ptr<Token>>
             return parseFunctionCall(tokens, currentPos);
 
         case IdentifierToken::IdentifierType::Invalid:
-            throw std::invalid_argument("Invalid identifier: " + identifierToken->text);
+            fail(ErrorCode::UnexpectedToken, "Invalid identifier: " + identifierToken->text, token);
         }
         
         throw std::logic_error("Unknown identifier type");
@@ -199,21 +248,23 @@ std::unique_ptr<ExpressionNode> parsePrimary(std::vector<std::unique_ptr<Token>>
         currentPos++;
         std::unique_ptr<ExpressionNode> expression = parseExpression(tokens, currentPos);
 
-        if (tokens[currentPos]->type != Token::TokenType::RightParen) throw std::invalid_argument("Right parentheses expected");
+        if (requireCurrentToken(tokens, currentPos).type != Token::TokenType::RightParen)
+            fail(ErrorCode::MissingRightParenthesis, "Right parenthesis expected", getCurrentToken(tokens, currentPos));
         
         currentPos++;
         return expression;
     }
     default:
-        throw std::invalid_argument("Unexpected token: " + currentToken->text);
+        fail(ErrorCode::UnexpectedToken, "Unexpected token: " + token->text, token);
     }
 }
 
 std::unique_ptr<ExpressionNode> parseFunctionCall(std::vector<std::unique_ptr<Token>>& tokens, size_t& currentPos)
 {
-    auto* identifierToken = dynamic_cast<IdentifierToken*>(tokens[currentPos].get());
+    const Token* token = getCurrentToken(tokens, currentPos);
+    auto* identifierToken = dynamic_cast<const IdentifierToken*>(token);
 
-    if (!identifierToken) throw std::invalid_argument("Function identifier expected");
+    if (!identifierToken) fail(ErrorCode::UnexpectedToken, "Function identifier expected", getCurrentToken(tokens, currentPos));
 
     FunctionNode::FunctionType functionType;
 
@@ -240,18 +291,20 @@ std::unique_ptr<ExpressionNode> parseFunctionCall(std::vector<std::unique_ptr<To
         break;
 
     default:
-        throw std::invalid_argument("Identifier is not a function");
+        fail(ErrorCode::UnexpectedToken, "Identifier is not a function", getCurrentToken(tokens, currentPos));
     }
 
     currentPos++;
 
-    if (tokens[currentPos]->type != Token::TokenType::LeftParen) throw std::invalid_argument("Left parenthesis expected after function");
+    if (requireCurrentToken(tokens, currentPos).type != Token::TokenType::LeftParen)
+        fail(ErrorCode::MissingFunctionParenthesis, "Left parenthesis expected after function", getCurrentToken(tokens, currentPos));
 
     currentPos++;
 
     std::unique_ptr<ExpressionNode> child = parseExpression(tokens, currentPos);
 
-    if (tokens[currentPos]->type != Token::TokenType::RightParen) throw std::invalid_argument("Right parenthesis expected after function argument");
+    if (requireCurrentToken(tokens, currentPos).type != Token::TokenType::RightParen)
+        fail(ErrorCode::MissingRightParenthesis, "Right parenthesis expected after function argument", getCurrentToken(tokens, currentPos));
 
     currentPos++;
 
@@ -260,16 +313,24 @@ std::unique_ptr<ExpressionNode> parseFunctionCall(std::vector<std::unique_ptr<To
 
 }
 
-std::unique_ptr<ExpressionTree> parse(std::vector<std::unique_ptr<Token>>& tokens)
+ParseResult parse(std::vector<std::unique_ptr<Token>>& tokens)
 {
-    validateTokens(tokens);
+    try
+    {
+        validateTokens(tokens);
 
-    size_t currentPos = 0;
+        size_t currentPos = 0;
+        std::unique_ptr<ExpressionNode> root = parseExpression(tokens, currentPos);
+        const Token* token = getCurrentToken(tokens, currentPos);
+        if (!token || token->type != Token::TokenType::End)
+            fail(ErrorCode::TrailingTokens, "Unexpected token after expression", token);
 
-    std::unique_ptr<ExpressionNode> root = parseExpression(tokens, currentPos);
-    if (currentPos >= tokens.size() || tokens[currentPos]->type != Token::TokenType::End) throw std::invalid_argument("Unexpected token after expression");
-    
-    return std::make_unique<ExpressionTree>(std::move(root));
+        return ParseResult::success(std::make_unique<ExpressionTree>(std::move(root)));
+    }
+    catch (const ParserException& exception)
+    {
+        return ParseResult::failure(exception.error);
+    }
 }
 
 }

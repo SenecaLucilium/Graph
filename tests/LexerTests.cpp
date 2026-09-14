@@ -2,14 +2,19 @@
 
 #include "Lexer.h"
 
+#include <stdexcept>
+
 using namespace src::core::ExpressionEngine::Lexer;
+namespace diagnostics = src::common::Diagnostics;
 
 namespace
 {
     std::vector<std::unique_ptr<Token>> tokenize(const std::string& source)
     {
         Lexer lexer(source);
-        return lexer.tokenize();
+        auto result = lexer.tokenize();
+        if (!result) throw std::runtime_error(result.error().message);
+        return std::move(result).value();
     }
 
     void expectToken(const std::unique_ptr<Token>& token, Token::TokenType type, const std::string& text, int position)
@@ -17,6 +22,16 @@ namespace
         EXPECT_EQ(token->type, type);
         EXPECT_EQ(token->text, text);
         EXPECT_EQ(token->position, position);
+    }
+
+    void expectLexingError(const std::string& source, diagnostics::ErrorCode code)
+    {
+        Lexer lexer(source);
+        auto result = lexer.tokenize();
+
+        ASSERT_FALSE(result);
+        EXPECT_EQ(result.error().domain, diagnostics::ErrorDomain::Lexer);
+        EXPECT_EQ(result.error().code, code);
     }
 
     void expectNumber(const std::unique_ptr<Token>& token, const std::string& text, int position, double value
@@ -87,9 +102,9 @@ TEST(LexerTests, TokenizesSupportedIdentifiers)
 
 TEST(LexerTests, TokenizesOperatorsParenthesesAndComma)
 {
-    auto tokens = tokenize("()+-*/^,");
+    auto tokens = tokenize("()+-*/^");
 
-    ASSERT_EQ(tokens.size(), 9);
+    ASSERT_EQ(tokens.size(), 8);
 
     expectToken(tokens[0], Token::TokenType::LeftParen, "(", 0);
     expectToken(tokens[1], Token::TokenType::RightParen, ")", 1);
@@ -98,8 +113,7 @@ TEST(LexerTests, TokenizesOperatorsParenthesesAndComma)
     expectToken(tokens[4], Token::TokenType::Star, "*", 4);
     expectToken(tokens[5], Token::TokenType::Slash, "/", 5);
     expectToken(tokens[6], Token::TokenType::Caret, "^", 6);
-    expectToken(tokens[7], Token::TokenType::Invalid, ",", 7);
-    expectToken(tokens[8], Token::TokenType::End, "", 8);
+    expectToken(tokens[7], Token::TokenType::End, "", 7);
 }
 
 TEST(LexerTests, TokenizesIntegerAndDecimalNumbers)
@@ -126,53 +140,24 @@ TEST(LexerTests, DoesNotTreatLeadingDotAsNumber)
     expectToken(tokens[2], Token::TokenType::End, "", 2);
 }
 
-TEST(LexerTests, SplitsNumberWithSecondDotIntoInvalidDot)
+TEST(LexerTests, ReportsNumberWithSecondDotAsInvalid)
 {
-    auto tokens = tokenize("2.4.1");
-
-    ASSERT_EQ(tokens.size(), 4);
-
-    expectNumber(tokens[0], "2.4", 0, 2.4);
-    expectToken(tokens[1], Token::TokenType::Invalid, ".", 3);
-    expectNumber(tokens[2], "1", 4, 1.0);
-    expectToken(tokens[3], Token::TokenType::End, "", 5);
+    expectLexingError("2.4.1", diagnostics::ErrorCode::InvalidNumber);
 }
 
-TEST(LexerTests, TokenizesUnknownCharactersAsInvalid)
+TEST(LexerTests, ReportsUnknownCharactersAsError)
 {
-    auto tokens = tokenize("x @ 2");
-
-    ASSERT_EQ(tokens.size(), 4);
-
-    expectIdentifier(tokens[0], "x", 0, IdentifierToken::IdentifierType::Variable);
-    expectToken(tokens[1], Token::TokenType::Invalid, "@", 2);
-    expectNumber(tokens[2], "2", 4, 2.0);
-    expectToken(tokens[3], Token::TokenType::End, "", 5);
+    expectLexingError("x @ 2", diagnostics::ErrorCode::UnexpectedCharacter);
 }
 
 TEST(LexerTests, MarksUnsupportedIdentifierAsInvalidIdentifier)
 {
-    auto tokens = tokenize("abc");
-
-    ASSERT_EQ(tokens.size(), 2);
-
-    expectIdentifier(tokens[0], "abc", 0, IdentifierToken::IdentifierType::Invalid);
-    expectToken(tokens[1], Token::TokenType::End, "", 3);
+    expectLexingError("abc", diagnostics::ErrorCode::InvalidIdentifier);
 }
 
 TEST(LexerTests, DoesNotSupportExpIdentifier)
 {
-    auto tokens = tokenize("exp(x)");
-
-    ASSERT_EQ(tokens.size(), 7);
-
-    expectIdentifier(tokens[0], "e", 0, IdentifierToken::IdentifierType::E);
-    expectIdentifier(tokens[1], "x", 1, IdentifierToken::IdentifierType::Variable);
-    expectIdentifier(tokens[2], "p", 2, IdentifierToken::IdentifierType::Invalid);
-    expectToken(tokens[3], Token::TokenType::LeftParen, "(", 3);
-    expectIdentifier(tokens[4], "x", 4, IdentifierToken::IdentifierType::Variable);
-    expectToken(tokens[5], Token::TokenType::RightParen, ")", 5);
-    expectToken(tokens[6], Token::TokenType::End, "", 6);
+    expectLexingError("exp(x)", diagnostics::ErrorCode::InvalidIdentifier);
 }
 
 TEST(LexerTests, AddsEndTokenForEmptyInput)
