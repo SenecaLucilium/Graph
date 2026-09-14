@@ -9,6 +9,7 @@ add_library(GraphCore STATIC
     src/core/ExpressionEngine/Lexer/Lexer.cpp
     src/core/ExpressionEngine/Parser/ExpressionNode.cpp
     src/core/ExpressionEngine/Parser/Parser.cpp
+    src/core/ExpressionEngine/Evaluator/Evaluator.cpp
 
     src/common/Diagnostics/Logger/Logger.cpp
     src/common/Diagnostics/Logger/Sink/ConsoleSink.cpp
@@ -18,6 +19,7 @@ target_include_directories(GraphCore PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/ExpressionEngine/Lexer
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/ExpressionEngine/Parser
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/ExpressionEngine/Evaluator
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common/Diagnostics
 )
 
@@ -44,6 +46,7 @@ enable_testing()
 add_executable(GraphTests
     tests/LexerTests.cpp
     tests/ParserTests.cpp
+    tests/EvaluationTests.cpp
     tests/DiagnosticsTests.cpp
 )
 
