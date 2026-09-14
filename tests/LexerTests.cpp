@@ -131,13 +131,7 @@ TEST(LexerTests, TokenizesIntegerAndDecimalNumbers)
 
 TEST(LexerTests, DoesNotTreatLeadingDotAsNumber)
 {
-    auto tokens = tokenize(".5");
-
-    ASSERT_EQ(tokens.size(), 3);
-
-    expectToken(tokens[0], Token::TokenType::Invalid, ".", 0);
-    expectNumber(tokens[1], "5", 1, 5.0);
-    expectToken(tokens[2], Token::TokenType::End, "", 2);
+    expectLexingError(".5", diagnostics::ErrorCode::UnexpectedCharacter);
 }
 
 TEST(LexerTests, ReportsNumberWithSecondDotAsInvalid)
