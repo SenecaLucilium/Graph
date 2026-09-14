@@ -11,7 +11,6 @@ add_library(GraphCore STATIC
     src/core/ExpressionEngine/Parser/Parser.cpp
     src/core/ExpressionEngine/Evaluator/Evaluator.cpp
     src/core/ExpressionEngine/Graph/GraphSampler.cpp
-    
     src/core/GraphEngine/AsciiPlot/AsciiPlot.cpp
 
     src/common/Diagnostics/Logger/Logger.cpp
@@ -30,6 +29,11 @@ target_include_directories(GraphCore PUBLIC
 
 add_executable(Graph
     src/main.cpp
+    src/ui/cli/Cli.cpp
+)
+
+target_include_directories(Graph PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/cli
 )
 
 target_link_libraries(Graph PRIVATE
@@ -60,6 +64,9 @@ target_include_directories(GraphTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/ExpressionEngine/Lexer
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/ExpressionEngine/Parser
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common/Diagnostics
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/ExpressionEngine/Evaluator
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/ExpressionEngine/Graph
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/GraphEngine/AsciiPlot
 )
 
 target_link_libraries(GraphTests PRIVATE

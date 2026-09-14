@@ -125,7 +125,7 @@ std::string canvasToString(const std::vector<std::string>& canvas)
 
 }
 
-PlotResult renderAscii(const Graph::SamplePoints& points, const PlotConfig& config)
+PlotResult renderAscii(const SamplePoints& points, const PlotConfig& config)
 {
     if (points.empty())
         return makeInvalidArgumentError("Cannot render an empty set of sample points");
@@ -146,7 +146,7 @@ PlotResult renderAscii(const Graph::SamplePoints& points, const PlotConfig& conf
     double xMin = std::numeric_limits<double>::infinity();
     double xMax = -std::numeric_limits<double>::infinity();
 
-    for (const Graph::SamplePoint& point : points)
+    for (const src::core::ExpressionEngine::Graph::SamplePoint& point : points)
     {
         if (!std::isfinite(point.x))
         {
@@ -172,7 +172,7 @@ PlotResult renderAscii(const Graph::SamplePoints& points, const PlotConfig& conf
 
     drawAxes(canvas, config, xMin, xMax);
 
-    for (const Graph::SamplePoint& point : points)
+    for (const src::core::ExpressionEngine::Graph::SamplePoint& point : points)
     {
         if (!point.y.has_value()) continue;
 

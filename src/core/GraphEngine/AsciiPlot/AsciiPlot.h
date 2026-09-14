@@ -6,10 +6,10 @@
 #include <cstddef>
 #include <string>
 
-namespace Graph = src::core::ExpressionEngine::Graph;
-
 namespace src::core::GraphEngine::AsciiPlot
 {
+
+using SamplePoints = src::core::ExpressionEngine::Graph::SamplePoints;
 
 struct PlotConfig
 {
@@ -29,6 +29,6 @@ struct PlotConfig
 
 using PlotResult = src::common::Diagnostics::Result<std::string>;
 
-PlotResult renderAscii(const Graph::SamplePoints& points, const PlotConfig& config = {});
+PlotResult renderAscii(const SamplePoints& points, const PlotConfig& config = {});
 
 }
