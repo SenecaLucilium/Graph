@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(GraphCore STATIC
+    src/core/ExpressionEngine/ExpressionEngine.cpp
     src/core/ExpressionEngine/Lexer/Lexer.cpp
     src/core/ExpressionEngine/Parser/ExpressionNode.cpp
     src/core/ExpressionEngine/Parser/Parser.cpp

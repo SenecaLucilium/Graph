@@ -23,6 +23,8 @@ struct PlotConfig
     char xAxisSymbol = '-';
     char yAxisSymbol = '|';
     char originSymbol = '+';
+    char xAxisArrow = '>';
+    char yAxisArrow = '^';
 
     bool drawAxes = true;
     bool drawLabels = true;

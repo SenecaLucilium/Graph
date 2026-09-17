@@ -310,6 +310,19 @@ void drawTicks(
     }
 }
 
+void drawAxisArrows(std::vector<std::string>& canvas, const PlotConfig& config, const Layout& layout)
+{
+    if (!config.drawAxes || layout.plotWidth == 0 || layout.plotHeight == 0) return;
+
+    const std::size_t leftMargin = config.drawLabels ? layout.labelWidth + 1 : 0;
+
+    if (layout.xAxisRow.has_value())
+        putCharacter(canvas, *layout.xAxisRow, leftMargin + layout.plotWidth - 1, config.xAxisArrow);
+
+    if (layout.yAxisColumn.has_value())
+        putCharacter(canvas, 0, leftMargin + *layout.yAxisColumn, config.yAxisArrow);
+}
+
 void writeRightAligned(
     std::string& row,
     std::size_t width,
@@ -364,10 +377,22 @@ void drawLabels(
 
     std::string& labelRow = canvas[layout.plotHeight + 1];
 
+    std::size_t lastLabelEnd = 0;
+    bool hasPreviousLabel = false;
+
     for (const Tick& tick : layout.xTicks)
     {
         const std::size_t column = leftMargin + tick.position;
+
+        const std::size_t half = tick.label.size() / 2;
+        const std::size_t start = column > half ? column - half : 0;
+        const std::size_t end = start + tick.label.size();
+
+        if (hasPreviousLabel && start <= lastLabelEnd) continue;
+
         writeCentered(labelRow, column, tick.label);
+        lastLabelEnd = end;
+        hasPreviousLabel = true;
     }
 }
 
@@ -547,6 +572,7 @@ PlotResult renderAscii(const SamplePoints& points, const PlotConfig& config)
 
     drawAxes(canvas, config, layout);
     drawTicks(canvas, config, layout);
+    drawAxisArrows(canvas, config, layout);
     drawLabels(canvas, config, layout);
     drawCurve(canvas, config, layout, points, xMin, xMax);
 

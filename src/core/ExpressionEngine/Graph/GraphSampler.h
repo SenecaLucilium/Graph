@@ -14,6 +14,7 @@ struct SamplePoint
 {
     double x;
     std::optional<double> y;
+    std::optional<src::common::Diagnostics::Errors::Error> error;
 };
 
 using SamplePoints = std::vector<SamplePoint>;
