@@ -25,6 +25,9 @@ struct PlotConfig
     char originSymbol = '+';
 
     bool drawAxes = true;
+    bool drawLabels = true;
+    bool connectPoints = true;
+    double discontinuityJumpFactor = 0.75;
 };
 
 using PlotResult = src::common::Diagnostics::Result<std::string>;
