@@ -68,9 +68,12 @@ else()
     message(WARNING "Qt6 Multimedia was not found; animated sound will be disabled")
 endif()
 
-install(TARGETS GraphUi RUNTIME DESTINATION bin)
+install(TARGETS Graph GraphUi RUNTIME DESTINATION bin)
 
 include(FetchContent)
+
+set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+set(INSTALL_GMOCK OFF CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
     googletest
