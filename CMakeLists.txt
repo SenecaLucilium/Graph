@@ -4,6 +4,9 @@ project(Graph LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
+
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 add_library(GraphCore STATIC
     src/core/ExpressionEngine/ExpressionEngine.cpp
@@ -40,6 +43,23 @@ target_include_directories(Graph PRIVATE
 target_link_libraries(Graph PRIVATE
     GraphCore
 )
+
+add_executable(GraphUi
+    src/ui/qt/main.cpp
+    src/ui/qt/MainWindow.cpp
+    src/ui/qt/PlotWidget.cpp
+)
+
+target_include_directories(GraphUi PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/qt
+)
+
+target_link_libraries(GraphUi PRIVATE
+    GraphCore
+    Qt6::Widgets
+)
+
+install(TARGETS GraphUi RUNTIME DESTINATION bin)
 
 include(FetchContent)
 
