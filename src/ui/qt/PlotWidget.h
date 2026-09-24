@@ -4,6 +4,8 @@
 
 #include <QWidget>
 
+#include <cstddef>
+
 class QMouseEvent;
 class QPaintEvent;
 class QWheelEvent;
@@ -18,6 +20,9 @@ class PlotWidget : public QWidget
 public:
     explicit PlotWidget(QWidget* parent = nullptr);
     void setSamples(const src::core::ExpressionEngine::Graph::SamplePoints& points);
+    void beginAnimation(const src::core::ExpressionEngine::Graph::SamplePoints& points);
+    void setAnimationProgress(std::size_t visiblePointCount);
+    void setInteractionLocked(bool locked);
     void setViewport(double xMin, double xMax, double yMin, double yMax);
 
 signals:
@@ -38,6 +43,9 @@ private:
     double yMax_ = 10.0;
     QPoint lastMousePosition_;
     bool panning_ = false;
+    std::size_t visiblePointCount_ = 0;
+    bool animationMode_ = false;
+    bool interactionLocked_ = false;
 };
 
 }

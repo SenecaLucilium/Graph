@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 QUIET COMPONENTS Multimedia)
 
 add_library(GraphCore STATIC
     src/core/ExpressionEngine/ExpressionEngine.cpp
@@ -46,6 +47,7 @@ target_link_libraries(Graph PRIVATE
 
 add_executable(GraphUi
     src/ui/qt/main.cpp
+    src/ui/qt/AudioPlayer.cpp
     src/ui/qt/MainWindow.cpp
     src/ui/qt/PlotWidget.cpp
 )
@@ -58,6 +60,13 @@ target_link_libraries(GraphUi PRIVATE
     GraphCore
     Qt6::Widgets
 )
+
+if(TARGET Qt6::Multimedia)
+    target_compile_definitions(GraphUi PRIVATE GRAPH_HAS_QT_MULTIMEDIA=1)
+    target_link_libraries(GraphUi PRIVATE Qt6::Multimedia)
+else()
+    message(WARNING "Qt6 Multimedia was not found; animated sound will be disabled")
+endif()
 
 install(TARGETS GraphUi RUNTIME DESTINATION bin)
 

@@ -56,7 +56,32 @@ PlotWidget::PlotWidget(QWidget* parent) : QWidget(parent)
 void PlotWidget::setSamples(const expressionGraph::SamplePoints& points)
 {
     points_ = points;
+    visiblePointCount_ = points_.size();
+    animationMode_ = false;
     update();
+}
+
+void PlotWidget::beginAnimation(const expressionGraph::SamplePoints& points)
+{
+    points_ = points;
+    visiblePointCount_ = 0;
+    animationMode_ = true;
+    setInteractionLocked(true);
+    update();
+}
+
+void PlotWidget::setAnimationProgress(std::size_t visiblePointCount)
+{
+    visiblePointCount_ = std::min(visiblePointCount, points_.size());
+    update();
+}
+
+void PlotWidget::setInteractionLocked(bool locked)
+{
+    interactionLocked_ = locked;
+    panning_ = false;
+    if (locked) setCursor(Qt::ArrowCursor);
+    else unsetCursor();
 }
 
 void PlotWidget::setViewport(double xMin, double xMax, double yMin, double yMax)
@@ -132,8 +157,10 @@ void PlotWidget::paintEvent(QPaintEvent*)
     std::optional<double> previousY;
     const double jumpLimit = (yMax_ - yMin_) * 0.75;
 
-    for (const expressionGraph::SamplePoint& point : points_)
+    const std::size_t pointCount = animationMode_ ? visiblePointCount_ : points_.size();
+    for (std::size_t index = 0; index < pointCount; ++index)
     {
+        const expressionGraph::SamplePoint& point = points_[index];
         if (!point.y.has_value() || !std::isfinite(*point.y) || *point.y < yMin_ || *point.y > yMax_)
         {
             previousPoint.reset();
@@ -154,6 +181,12 @@ void PlotWidget::paintEvent(QPaintEvent*)
 
 void PlotWidget::wheelEvent(QWheelEvent* event)
 {
+    if (interactionLocked_)
+    {
+        event->accept();
+        return;
+    }
+
     const QRectF rect = graphRect(*this);
     const QPointF cursor = event->position();
     const double cursorX = xMin_ + (cursor.x() - rect.left()) / rect.width() * (xMax_ - xMin_);
@@ -171,6 +204,12 @@ void PlotWidget::wheelEvent(QWheelEvent* event)
 
 void PlotWidget::mousePressEvent(QMouseEvent* event)
 {
+    if (interactionLocked_)
+    {
+        event->accept();
+        return;
+    }
+
     if (event->button() != Qt::LeftButton) return;
 
     panning_ = true;
@@ -181,6 +220,12 @@ void PlotWidget::mousePressEvent(QMouseEvent* event)
 
 void PlotWidget::mouseMoveEvent(QMouseEvent* event)
 {
+    if (interactionLocked_)
+    {
+        event->accept();
+        return;
+    }
+
     if (!panning_) return;
 
     const QRectF rect = graphRect(*this);
@@ -196,6 +241,12 @@ void PlotWidget::mouseMoveEvent(QMouseEvent* event)
 
 void PlotWidget::mouseReleaseEvent(QMouseEvent* event)
 {
+    if (interactionLocked_)
+    {
+        event->accept();
+        return;
+    }
+
     if (event->button() != Qt::LeftButton) return;
 
     panning_ = false;
